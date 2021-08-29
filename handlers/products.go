@@ -4,6 +4,8 @@ import (
 	"log"
 	"net/http"
 	"pApi/data"
+	"regexp"
+	"strconv"
 )
 
 type Products struct {
@@ -20,14 +22,64 @@ func (p *Products) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.Method == http.MethodPost {
+		p.addProducts(rw, r)
+		return
+	}
+
 	if r.Method == http.MethodPut {
-		p.updateProducts(rw, r)
+
+		reg := regexp.MustCompile(`/{[0-9]+}`)
+		grp := reg.FindAllStringSubmatch(r.URL.Path, -1)
+
+		if len(grp) != 1 {
+			http.Error(rw, "Invalid URI", http.StatusBadRequest)
+			return
+		}
+
+		if len(grp[0]) != 2 {
+			http.Error(rw, "Invalid URI", http.StatusBadRequest)
+			return
+		}
+		idString := grp[0][1]
+		id, err := strconv.Atoi(idString)
+
+		if err != nil {
+			http.Error(rw, "Invalid URI", http.StatusBadRequest)
+			return
+		}
+
+		p.updateProducts(rw, r, id)
 		return
 	}
 
 }
 
-func (p *Products) updateProducts(rw http.ResponseWriter, r *http.Request) {}
+func (p *Products) updateProducts(rw http.ResponseWriter, r *http.Request, id int) {
+	prod := &data.Product{}
+	err := prod.FromJSON(r.Body)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err = data.UpdateProducts(id, prod)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (p *Products) addProducts(rw http.ResponseWriter, r *http.Request) {
+	prod := &data.Product{}
+	err := prod.FromJSON(r.Body)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+	}
+
+	data.AddProduct(prod)
+
+}
 
 func (p *Products) getProducts(rw http.ResponseWriter, r *http.Request) {
 	lp := data.GetProducts()
