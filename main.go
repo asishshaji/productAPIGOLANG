@@ -14,8 +14,9 @@ func main() {
 		data, err := ioutil.ReadAll(r.Body)
 
 		if err != nil {
-			rw.WriteHeader(http.StatusBadRequest)
-			rw.Write([]byte("Error reading data."))
+			http.Error(rw, "Errror reading data", http.StatusBadRequest)
+			// rw.WriteHeader(http.StatusBadRequest)
+			// rw.Write([]byte("Error reading data."))
 			return
 		}
 
