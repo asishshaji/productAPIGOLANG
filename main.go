@@ -1,28 +1,46 @@
 package main
 
 import (
-	"fmt"
-	"io/ioutil"
+	"context"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"pApi/handlers"
+	"syscall"
+	"time"
 )
 
 func main() {
 
-	http.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {
-		log.Println("Hi")
-		data, err := ioutil.ReadAll(r.Body)
+	l := log.New(os.Stdout, "product-api", log.LstdFlags)
+	hh := handlers.NewHello(l)
 
+	sm := http.NewServeMux()
+	sm.Handle("/", hh)
+
+	s := &http.Server{
+		Addr:         ":9092",
+		Handler:      sm,
+		IdleTimeout:  time.Second * 120,
+		ReadTimeout:  time.Second,
+		WriteTimeout: time.Second,
+	}
+
+	go func() {
+		err := s.ListenAndServe()
 		if err != nil {
-			http.Error(rw, "Errror reading data", http.StatusBadRequest)
-			// rw.WriteHeader(http.StatusBadRequest)
-			// rw.Write([]byte("Error reading data."))
-			return
+			l.Fatal(err)
 		}
+	}()
 
-		fmt.Fprintf(rw, "Hello %s", data)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	})
+	sig := <-sigChan
+	l.Println("Received terminate, graceful shutdown type :", sig)
 
-	http.ListenAndServe(":9092", nil)
+	tc, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	s.Shutdown(tc)
 }
